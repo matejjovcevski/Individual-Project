@@ -1,0 +1,79 @@
+function [f1, estimatedR, directR] = compare(estimfECG, directfECG, fs)
+% Syntax:       [f1] = compare(estimfECG,directfECG)
+%               
+% Inputs:       estimfECG: one-dimensional ecg data array containing
+%               the estimated fECG signal
+%               
+%               directfECG: fECG signal measured directly (reference)
+%               
+%               fs: sampling rate
+%               
+%               
+% Outputs:      F1: performance metric for the ability to detect a
+%               fetal heart beat within a 100 sampe (ms for 1 kHz fs) 
+%               window, it is expressed as a value between 0 and 1.
+%
+%               estimatedR: array of indeces of R peaks for the estimated
+%               fECG
+%
+%               directR: array of indeces of R peaks for the reference
+%               fECG
+%
+%               
+% Description:  Uses the Pan and Tompkins R-peak detection algorithm to
+% find R-peaks of reference(scalp) measurement and estimated fECG, and then
+% calculates the F1 value for the estimated fECG.
+% 
+
+%if length(estimfECG) ~= length(directfECG)
+%    error("Array sizes do not match")
+%end
+
+n = size(estimfECG);
+
+[~,dir_qrs_i_raw,dir_delay] = pan_tompkin(directfECG,fs,0);
+
+dir_impulseTrain =  zeros([1 n]);
+for i=1:length(dir_qrs_i_raw)
+   dir_impulseTrain(dir_qrs_i_raw(i)) = 1;
+end
+
+[~,estim_qrs_i_raw,estim_delay] = pan_tompkin(estimfECG,fs,0);
+
+estim_impulseTrain =  zeros([1 n]);
+for i=1:length(estim_qrs_i_raw)
+   estim_impulseTrain(estim_qrs_i_raw(i)) = 1;
+end
+
+tp = 0; % True positive
+fp = 0; % False positive
+fn = 0; % False negative
+
+for i=1:length(estim_impulseTrain)
+    if estim_impulseTrain(i) == 1
+        for j=0:100
+            if j==100
+                fp = fp + 1;
+                break;
+            end
+
+            if dir_impulseTrain(i - 50 + j) == 1    
+                tp = tp + 1;
+                dir_impulseTrain(i - 50 + j) = 2; %mark corresponding point to avoid double counting
+                break;
+            end
+        end
+    end
+end
+
+for i=1:length(dir_impulseTrain)
+    if dir_impulseTrain(i) == 1
+        fn = fn+1; %count remaining points that weren't detected
+    end
+end
+
+f1 = 2 * tp / (2*tp + fp + fn);
+estimatedR = estim_impulseTrain;
+directR = dir_impulseTrain;
+
+end
